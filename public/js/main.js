@@ -113,9 +113,7 @@ function stopLooking() {
 
 function displayDescription(result) {
   stopLooking();
-  console.log("result found=" + result.label)
   if (!result.label.includes("oops") && !result.label.includes("Looking")) {
-    console.log("result found=" + result.label)
     onValue(ref(database, '/employees/' + result.label), (snapshot) => {
       var userData = JSON.parse(JSON.stringify(snapshot));
       let businessCard = "Name: " + userData['name']
