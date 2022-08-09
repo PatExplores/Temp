@@ -79,10 +79,11 @@ function stopLooking() {
 function displayDescription(result) {
     stopLooking();
     const probability = Math.round(result.distance * 100);
-    description.innerText = `Found ${result.label} with match ${probability}%`;
+    description.innerText = `Hello ${result.label}!`;
 }
 
 async function predictImage(canvas) {
+  let found = false;
   const blbImage = dataURLtoBlob(canvas.toDataURL('image/png'));
   let image = await faceapi.bufferToImage(blbImage)
   const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors, 0.6)
@@ -93,9 +94,13 @@ async function predictImage(canvas) {
   const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor))
   console.log("result count=" + results.length)
   results.forEach((result, i) => {
-    displayDescription(result)
+    if (!result.label.includes("unknown")) {
+      displayDescription(result)
+      found = true;
+    }
+    console.log("found match name = " + result.label + " match %=" + Math.round(result.distance * 100))
   })
-  if (!results || results.length == 0) {
+  if (!found) {
     startLookingAgain();
   }
 }
