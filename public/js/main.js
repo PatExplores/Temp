@@ -1,14 +1,36 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-app.js";
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-auth.js";
+import { getDatabase, set, ref, update, onValue, child, get } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-database.js";
+
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDAvkgRVng7pyUF3WvVtxXxHrAql2QTxL8",
+  authDomain: "fir-prjct-6431b.firebaseapp.com",
+  projectId: "fir-prjct-6431b",
+  storageBucket: "fir-prjct-6431b.appspot.com",
+  messagingSenderId: "569727461690",
+  appId: "1:569727461690:web:0ebd710c21c045d6418803"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const auth = getAuth();
+const database = getDatabase(app);
+
 const player = document.getElementById('player');
 const canvas = document.createElement('canvas');
 const context = canvas.getContext('2d');
 const aiscan = new Event("aiscan");
 const description = document.getElementById("prediction-overlay");
 const predictagain = document.getElementById("predictbtn");
+var userList = [];
+const dbRef = ref(database, 'employees/');
 var labeledFaceDescriptors = undefined
 var intervalID;
 
 async function preloadLabeledImages() {
   labeledFaceDescriptors = await loadLabeledImages()
+  labeledFaceDescriptors = labeledFaceDescriptors.filter(x => x != null)
 }
 
 let imageCapture;
@@ -17,12 +39,26 @@ Promise.all([
   faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
   faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
   faceapi.nets.ssdMobilenetv1.loadFromUri('/models')
-]).then(preloadLabeledImages);
+]).then(fetchUsers);
+
+function fetchUsers() {
+  const promise1 = new Promise((resolve, reject) => {
+    onValue(dbRef, (snapshot) => {
+      snapshot.forEach((childSnapshot) => {
+        userList.push(childSnapshot.key);
+      });
+      resolve();
+    }, {
+      onlyOnce: true
+    })
+  });
+  Promise.all([promise1]).then(preloadLabeledImages);
+}
 
 const constraints = {
   audio: false,
   video: {
-    facingMode: 'environment'
+    facingMode: 'user'
   }
 };
 
@@ -62,10 +98,8 @@ function startLookingAgain() {
       player.dispatchEvent(aiscan);
     } else {
       player.play();
-      // const box = document.getElementsByClassName('flex-container')[0];
-      // box.style.visibility = 'hidden';
       setTimeout(() => {
-        displayDescription({label: "Looking for match..."})
+        displayDescription({ label: "Looking for match..." })
         player.dispatchEvent(aiscan);
       }, 1500);
     }
@@ -78,13 +112,23 @@ function stopLooking() {
 }
 
 function displayDescription(result) {
-    stopLooking();
-    if (!result.label.includes("oops") && !result.label.includes("Looking")) {
-      let name = result.label.replace("_", " ")
-      description.innerText = "Hello " + name + "!";
-    } else {
-      description.innerText = result.label;
-    }
+  stopLooking();
+  console.log("result found=" + result.label)
+  if (!result.label.includes("oops") && !result.label.includes("Looking")) {
+    console.log("result found=" + result.label)
+    onValue(ref(database, '/employees/' + result.label), (snapshot) => {
+      var userData = JSON.parse(JSON.stringify(snapshot));
+      let businessCard = "Name: " + userData['name']
+      businessCard += "\n" + "Role: " + userData['role']
+      businessCard += "\n" + "Phone: " + userData['phone']
+      businessCard += "\n" + "Email: " + userData['email']
+      description.innerText = businessCard;
+    }, {
+      onlyOnce: true
+    });
+  } else {
+    description.innerText = result.label;
+  }
 }
 
 async function predictImage(canvas) {
@@ -105,7 +149,7 @@ async function predictImage(canvas) {
     console.log("found match name = " + result.label + " match %=" + Math.round(result.distance * 100))
   })
   if (results.length == 0) {
-    displayDescription({label: "oops, no match found!"})
+    displayDescription({ label: "oops, no match found!" })
   }
   if (!found) {
     startLookingAgain();
@@ -113,15 +157,19 @@ async function predictImage(canvas) {
 }
 
 async function loadLabeledImages() {
-  const labels = ['Deepthi_Thomas', 'Prashant_Patil', 'Umesh_Kumar']
   return Promise.all(
-    labels.map(async label => {
+    userList.map(async label => {
       const descriptions = []
-      for (let i = 1; i <= 1; i++) {
-        const link = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${label}/${i}.jpg`
-        const img = await faceapi.fetchImage(link)
-        const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
-        descriptions.push(detections.descriptor)
+      try {
+        for (let i = 1; i <= 1; i++) {
+          const link = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${label}/${i}.jpg`
+          const img = await faceapi.fetchImage(link)
+          const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
+          descriptions.push(detections.descriptor)
+        }
+      }
+      catch {
+        return null
       }
       return new faceapi.LabeledFaceDescriptors(label, descriptions)
     })
