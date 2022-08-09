@@ -62,8 +62,8 @@ function startLookingAgain() {
       player.dispatchEvent(aiscan);
     } else {
       player.play();
-      const box = document.getElementsByClassName('flex-container')[0];
-      box.style.visibility = 'hidden';
+      // const box = document.getElementsByClassName('flex-container')[0];
+      // box.style.visibility = 'hidden';
       setTimeout(() => {
         player.dispatchEvent(aiscan);
       }, 1500);
@@ -78,7 +78,6 @@ function stopLooking() {
 
 function displayDescription(result) {
     stopLooking();
-    const probability = Math.round(result.distance * 100);
     description.innerText = `Hello ${result.label}!`;
 }
 
@@ -100,6 +99,9 @@ async function predictImage(canvas) {
     }
     console.log("found match name = " + result.label + " match %=" + Math.round(result.distance * 100))
   })
+  if (results.length == 0) {
+    displayDescription({label: "oops, no match found!"})
+  }
   if (!found) {
     startLookingAgain();
   }
