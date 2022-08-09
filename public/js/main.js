@@ -65,6 +65,7 @@ function startLookingAgain() {
       // const box = document.getElementsByClassName('flex-container')[0];
       // box.style.visibility = 'hidden';
       setTimeout(() => {
+        displayDescription({label: "Looking for match..."})
         player.dispatchEvent(aiscan);
       }, 1500);
     }
@@ -78,7 +79,7 @@ function stopLooking() {
 
 function displayDescription(result) {
     stopLooking();
-    if (!result.label.includes("oops")) {
+    if (!result.label.includes("oops") && !result.label.includes("Looking")) {
       let name = result.label.replace("_", " ")
       description.innerText = "Hello " + name + "!";
     } else {
