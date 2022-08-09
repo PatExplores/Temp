@@ -78,7 +78,12 @@ function stopLooking() {
 
 function displayDescription(result) {
     stopLooking();
-    description.innerText = `Hello ${result.label}!`;
+    if (!result.label.includes("oops")) {
+      let name = result.label.replace("_", " ")
+      description.innerText = "Hello " + name + "!";
+    } else {
+      description.innerText = result.label;
+    }
 }
 
 async function predictImage(canvas) {
@@ -91,7 +96,6 @@ async function predictImage(canvas) {
   const detections = await faceapi.detectAllFaces(image).withFaceLandmarks().withFaceDescriptors()
   const resizedDetections = faceapi.resizeResults(detections, displaySize)
   const results = resizedDetections.map(d => faceMatcher.findBestMatch(d.descriptor))
-  console.log("result count=" + results.length)
   results.forEach((result, i) => {
     if (!result.label.includes("unknown")) {
       displayDescription(result)
@@ -108,7 +112,7 @@ async function predictImage(canvas) {
 }
 
 async function loadLabeledImages() {
-  const labels = ['deepthi', 'umeshkumar', 'venkat', 'prashant']
+  const labels = ['Deepthi_Thomas', 'Prashant_Patil', 'Umesh_Kumar']
   return Promise.all(
     labels.map(async label => {
       const descriptions = []
