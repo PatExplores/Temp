@@ -1,6 +1,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-auth.js";
-import { getDatabase, set, ref, update, onValue, child, get } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-database.js";
+import { getAuth } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-auth.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/9.9.2/firebase-database.js";
+
+const { jsPDF } = window.jspdf;
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -22,18 +24,20 @@ const canvas = document.createElement('canvas');
 const context = canvas.getContext('2d');
 const aiscan = new Event("aiscan");
 const description = document.getElementById("prediction-overlay");
-const predictagain = document.getElementById("predictbtn");
+var hVcardDownload = document.getElementById("vcardDownload");
 var userList = [];
-const dbRef = ref(database, 'employees/');
 var labeledFaceDescriptors = undefined
-var intervalID;
+var lastPredictedUser;
+var userData;
+var imageCapture;
 
 async function preloadLabeledImages() {
   labeledFaceDescriptors = await loadLabeledImages()
   labeledFaceDescriptors = labeledFaceDescriptors.filter(x => x != null)
+  const box = document.getElementsByClassName('loader')[0];
+  box.style.visibility = 'hidden';
+  loadCamera()
 }
-
-let imageCapture;
 
 Promise.all([
   faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
@@ -43,7 +47,7 @@ Promise.all([
 
 function fetchUsers() {
   const promise1 = new Promise((resolve, reject) => {
-    onValue(dbRef, (snapshot) => {
+    onValue(ref(database, 'employees/'), (snapshot) => {
       snapshot.forEach((childSnapshot) => {
         userList.push(childSnapshot.key);
       });
@@ -62,14 +66,9 @@ const constraints = {
   }
 };
 
-predictagain.addEventListener('click', () => {
-  startLookingAgain();
-});
-
 player.addEventListener('aiscan', () => {
   imageCapture.grabFrame()
     .then((imageBitmap) => {
-      player.pause();
       canvas.width = imageBitmap.width;
       canvas.height = imageBitmap.height;
       context.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
@@ -82,28 +81,13 @@ function loadCamera() {
     player.srcObject = stream;
     const track = stream.getVideoTracks()[0];
     imageCapture = new ImageCapture(track);
-    intervalID = setInterval(startLookingAgain, 2000);
-  });
-}
-
-const box = document.getElementsByClassName('loader')[0];
-box.style.visibility = 'hidden';
-loadCamera()
-
-function startLookingAgain() {
-  if (labeledFaceDescriptors) {
-    if (intervalID) {
-      clearInterval(intervalID);
-      intervalID = undefined
+    setTimeout(() => {
       player.dispatchEvent(aiscan);
-    } else {
-      player.play();
-      setTimeout(() => {
-        displayDescription({ label: "Looking for match..." })
-        player.dispatchEvent(aiscan);
-      }, 1500);
-    }
-  }
+    }, 1500);
+  });
+  hVcardDownload.addEventListener('click', () => {
+    pdfUserSave(userData, lastPredictedUser)
+  });
 }
 
 function stopLooking() {
@@ -114,19 +98,50 @@ function stopLooking() {
 function displayDescription(result) {
   stopLooking();
   if (!result.label.includes("oops") && !result.label.includes("Looking")) {
+    hVcardDownload.style.visibility = 'visible';
     onValue(ref(database, '/employees/' + result.label), (snapshot) => {
-      var userData = JSON.parse(JSON.stringify(snapshot));
-      let businessCard = "Name: " + userData['name']
-      businessCard += "\n" + "Role: " + userData['role']
-      businessCard += "\n" + "Phone: " + userData['phone']
-      businessCard += "\n" + "Email: " + userData['email']
+      userData = JSON.parse(JSON.stringify(snapshot));
+      let businessCard = "Name: " + userData['name'] +
+        "\n" + "Role: " + userData['role'] +
+        "\n" + "Phone: " + userData['phone'] +
+        "\n" + "Email: " + userData['email']
       description.innerText = businessCard;
+      lastPredictedUser = result.label
     }, {
       onlyOnce: true
     });
   } else {
+    hVcardDownload.style.visibility = 'hidden';
     description.innerText = result.label;
   }
+}
+
+async function pdfUserSave(userData, user) {
+  const parser = new DOMParser();
+  var htmlString = await loadBusinessCard();
+  const bcarddom = parser.parseFromString(htmlString, "text/html");
+  bcarddom.getElementById("mypic").src = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${user}/1.jpg`
+  bcarddom.getElementById("myname").innerHTML = userData['name']
+  bcarddom.getElementById("myrole").innerHTML = userData['role']
+  bcarddom.getElementById("myno").innerHTML = userData['phone']
+  bcarddom.getElementById("myemail").innerHTML = userData['email']
+  bcarddom.getElementById("myli").innerHTML = userData['linkedInId']
+  bcarddom.getElementById("myloc").innerHTML = userData['location']
+  bcarddom.getElementById("mysite").innerHTML = userData['email'].split('@')[1]
+  const pdf = new jsPDF('p', 'pt', 'a4');
+  pdf.html(bcarddom.body, {
+    callback: function (doc) {
+      pdf.save("BusinessCard_" + userData['name'].split(" ").join("_") + ".pdf");
+    },
+    x: 100,
+    y: 10
+  });
+}
+
+async function loadBusinessCard() {
+  let response = await fetch("/businesscard.html");
+  let text_data = await response.text();
+  return text_data;
 }
 
 async function predictImage(canvas) {
@@ -149,9 +164,9 @@ async function predictImage(canvas) {
   if (results.length == 0) {
     displayDescription({ label: "oops, no match found!" })
   }
-  if (!found) {
-    startLookingAgain();
-  }
+  setTimeout(() => {
+    player.dispatchEvent(aiscan);
+  }, 1500);
 }
 
 async function loadLabeledImages() {
@@ -159,7 +174,7 @@ async function loadLabeledImages() {
     userList.map(async label => {
       const descriptions = []
       try {
-        for (let i = 1; i <= 1; i++) {
+        for (let i = 1; i <= 3; i++) {
           const link = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${label}/${i}.jpg`
           const img = await faceapi.fetchImage(link)
           const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
@@ -167,7 +182,9 @@ async function loadLabeledImages() {
         }
       }
       catch {
-        return null
+        if (descriptions.length == 0) {
+          return null
+        }
       }
       return new faceapi.LabeledFaceDescriptors(label, descriptions)
     })

@@ -1,5 +1,7 @@
 const https = require('https');
 const fs = require('fs');
+var cors = require('cors')
+
 var express = require('express'),
     path = require('path'),
     app = express();
@@ -15,6 +17,8 @@ app.get('/', function(req, res) {
 });
 
 app.use('/', express.static(public));
+app.use(cors())
 
 var httpsServer = https.createServer(options, app);
-httpsServer.listen(8000);
+const port = process.env.PORT || 8000;
+httpsServer.listen(port);

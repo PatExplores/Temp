@@ -6,17 +6,19 @@
   <!-- TensorFlow-->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <script src="/js/face-api.min.js"></script>
+  <script src="https://unpkg.com/jspdf@latest/dist/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.js"></script>
 </head>
 
 <body>
   <div class="loader">
-    <h2>Loading ...</h2>
+    <h2>Loading, Please wait...</h2>
   </div>
   <video id="player" class="screen" autoplay></video>
   <div class="flex-container">
     <div id="prediction-overlay"> </div>
-    <div class="div2">
-      <button id="predictbtn" class="btn"><i class="fa fa-refresh"></i></button>
+    <div class="div2" id="vcardDownload">
+      <button class="btn"><i class="fa fa-vcard" style="font-size:48px;color:red"></i></button>
     </div>
   </div>
   <script type="module" src="/js/main.js">
