@@ -1,24 +1,24 @@
-const https = require('https');
+const http = require('http');
 const fs = require('fs');
-var cors = require('cors')
+const cors = require('cors')
 
 var express = require('express'),
     path = require('path'),
     app = express();
 var public = path.join(__dirname, 'public');
 
-const options = {
-    key: fs.readFileSync('key.pem'),
-    cert: fs.readFileSync('cert.pem')
-};
+//app.use(cors({origin:"*"}))
 
-app.get('/', function(req, res) {
+app.get('/', function (req, res) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Credentials', true);
     res.sendFile(path.join(public, 'index.htm'));
 });
 
 app.use('/', express.static(public));
-app.use(cors())
 
-var httpsServer = https.createServer(options, app);
+var httpServer = http.createServer(app);
 const port = process.env.PORT || 8000;
-httpsServer.listen(port);
+httpServer.listen(port);

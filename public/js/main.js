@@ -29,15 +29,52 @@ var userList = [];
 var labeledFaceDescriptors = undefined
 var lastPredictedUser;
 var userData;
+var appInitialized = false;
 var imageCapture;
+var cameraStarted = false;
 
 async function preloadLabeledImages() {
   labeledFaceDescriptors = await loadLabeledImages()
   labeledFaceDescriptors = labeledFaceDescriptors.filter(x => x != null)
-  const box = document.getElementsByClassName('loader')[0];
-  box.style.visibility = 'hidden';
-  loadCamera()
+  appInitialized = true
+  startCamera();
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === 'visible') {
+    player.dispatchEvent(aiscan);
+  }
+});
+
+window.addEventListener("orientationchange", (event) => {
+  player.dispatchEvent(aiscan);
+});
+
+function startCamera() {
+  if (!cameraStarted) {
+    player.setAttribute('autoplay', '');
+    player.setAttribute('muted', '');
+    player.setAttribute('playsinline', '');
+
+    cameraStarted = true
+    const box = document.getElementsByClassName('loader')[0];
+    box.style.visibility = 'hidden';
+    loadCamera()
+  } else {
+    player.dispatchEvent(aiscan);
+  }
+}
+
+const constraints = {
+  audio: false,
+  video: {
+    facingMode: 'user'
+  }
+};
+
+setTimeout(() => {
+  startCamera();
+}, 4000);
 
 Promise.all([
   faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
@@ -59,14 +96,8 @@ function fetchUsers() {
   Promise.all([promise1]).then(preloadLabeledImages);
 }
 
-const constraints = {
-  audio: false,
-  video: {
-    facingMode: 'user'
-  }
-};
-
 player.addEventListener('aiscan', () => {
+  if (appInitialized) {
   imageCapture.grabFrame()
     .then((imageBitmap) => {
       canvas.width = imageBitmap.width;
@@ -74,6 +105,7 @@ player.addEventListener('aiscan', () => {
       context.drawImage(imageBitmap, 0, 0, canvas.width, canvas.height);
       predictImage(canvas);
     })
+  }
 });
 
 function loadCamera() {
@@ -83,6 +115,7 @@ function loadCamera() {
     imageCapture = new ImageCapture(track);
     setTimeout(() => {
       player.dispatchEvent(aiscan);
+      displayDescription({ label: 'Scanning... Trying to find a match!' })
     }, 1500);
   });
   hVcardDownload.addEventListener('click', () => {
@@ -97,7 +130,7 @@ function stopLooking() {
 
 function displayDescription(result) {
   stopLooking();
-  if (!result.label.includes("oops") && !result.label.includes("Looking")) {
+  if (!result.label.includes("Scanning")) {
     hVcardDownload.style.visibility = 'visible';
     onValue(ref(database, '/employees/' + result.label), (snapshot) => {
       userData = JSON.parse(JSON.stringify(snapshot));
@@ -105,8 +138,8 @@ function displayDescription(result) {
         "\n" + "Role: " + userData['role'] +
         "\n" + "Phone: " + userData['phone'] +
         "\n" + "Email: " + userData['email']
-      description.innerText = businessCard;
-      lastPredictedUser = result.label
+        lastPredictedUser = result.label
+        description.innerText = businessCard;
     }, {
       onlyOnce: true
     });
@@ -117,7 +150,7 @@ function displayDescription(result) {
 }
 
 async function pdfUserSave(userData, user) {
-  const parser = new DOMParser();
+  let parser = new DOMParser();
   var htmlString = await loadBusinessCard();
   const bcarddom = parser.parseFromString(htmlString, "text/html");
   bcarddom.getElementById("mypic").src = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${user}/1.jpg`
@@ -127,7 +160,7 @@ async function pdfUserSave(userData, user) {
   bcarddom.getElementById("myemail").innerHTML = userData['email']
   bcarddom.getElementById("myli").innerHTML = userData['linkedInId']
   bcarddom.getElementById("myloc").innerHTML = userData['location']
-  bcarddom.getElementById("mysite").innerHTML = userData['email'].split('@')[1]
+  bcarddom.getElementById("mysite").innerHTML = "www." + userData['email'].split('@')[1]
   const pdf = new jsPDF('p', 'pt', 'a4');
   pdf.html(bcarddom.body, {
     callback: function (doc) {
@@ -162,7 +195,7 @@ async function predictImage(canvas) {
     console.log("found match name = " + result.label + " match %=" + Math.round(result.distance * 100))
   })
   if (results.length == 0) {
-    displayDescription({ label: "oops, no match found!" })
+    displayDescription({ label: 'Scanning... Trying to find a match!' })
   }
   setTimeout(() => {
     player.dispatchEvent(aiscan);
@@ -174,7 +207,7 @@ async function loadLabeledImages() {
     userList.map(async label => {
       const descriptions = []
       try {
-        for (let i = 1; i <= 3; i++) {
+        for (let i = 1; i <= 2; i++) {
           const link = `https://raw.githubusercontent.com/sunumuk/virtualbusinesscard/master/images/${label}/${i}.jpg`
           const img = await faceapi.fetchImage(link)
           const detections = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor()
